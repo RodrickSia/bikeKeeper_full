@@ -1,0 +1,6 @@
+[submodule "backend"]
+	path = backend
+	url = https://github.com/RodrickSia/SE104_bikeKeeper.git
+[submodule "FE"]
+	path = FE
+	url = https://github.com/maivinhnguyen/CNPM-FE.git
