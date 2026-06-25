@@ -1,0 +1,110 @@
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Starting Cloudflare Tunnel to http://nginx..."
+        /usr/local/bin/cloudflared tunnel --url http://nginx 2>&1 | (
+          while read -r line; do
+            echo "$line"
+            url=$(echo "$line" | grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com')
+            if [ -n "$url" ]; then
+              echo ""
+              echo "============================================"
+              echo "  CLOUDFLARE TUNNEL URL: $url"
+              echo "  Share this URL to access the app from anywhere"
+              echo "============================================"
+              echo ""
+            fi
+          done
+        )
+    depends_on:
+      - nginx
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "32065:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      bikekeeper:
+        condition: service_started
+      frontend:
+        condition: service_started
+    networks:
+      - bikekeeper
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./FE/frontend
+      args:
+        - NEXT_PUBLIC_API_URL=http://nginx/api/v1
+    expose:
+      - "3000"
+    depends_on:
+      - bikekeeper
+    networks:
+      - bikekeeper
+    restart: unless-stopped
+
+  bikekeeper:
+    build: ./backend/bikeKeeper
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./backend/bikeKeeper/.env
+    networks:
+      - bikekeeper
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/auth/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  ocr-service:
+    build: ./backend/OCR_Plate
+    expose:
+      - "5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - bikekeeper
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:5000/openapi.json || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  postgres:
+    image: postgres:17-alpine
+    env_file:
+      - ./backend/bikeKeeper/.env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bikekeeper"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bikekeeper
+    restart: unless-stopped
+
+networks:
+  bikekeeper:
+    driver: bridge
+
+volumes:
+  pgdata:
