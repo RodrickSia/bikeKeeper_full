@@ -1,24 +1,7 @@
 services:
   cloudflared:
     image: cloudflare/cloudflared:latest
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo "Starting Cloudflare Tunnel to http://nginx..."
-        /usr/local/bin/cloudflared tunnel --url http://nginx 2>&1 | (
-          while read -r line; do
-            echo "$line"
-            url=$(echo "$line" | grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com')
-            if [ -n "$url" ]; then
-              echo ""
-              echo "============================================"
-              echo "  CLOUDFLARE TUNNEL URL: $url"
-              echo "  Share this URL to access the app from anywhere"
-              echo "============================================"
-              echo ""
-            fi
-          done
-        )
+    command: tunnel --url http://nginx
     depends_on:
       - nginx
     restart: unless-stopped
