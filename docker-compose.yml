@@ -4,6 +4,8 @@ services:
     command: tunnel --url http://nginx
     depends_on:
       - nginx
+    networks:
+      - bikekeeper
     restart: unless-stopped
 
   nginx:
